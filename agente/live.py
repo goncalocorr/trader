@@ -18,6 +18,7 @@ from agente.desk import MIN_HISTORY, decide, window
 STATE_DIR = os.path.join(os.path.dirname(data.DIR), "state")
 ACCOUNT = os.path.join(STATE_DIR, "paper.json")
 LOG = os.path.join(STATE_DIR, "sinais.jsonl")
+RESUMO = os.path.join(STATE_DIR, "RESUMO.md")
 CAPITAL = 25.0  # USDT (~EUR): the owner's real budget; one position at a time fits the 5 USDT minimum
 STALE_MS = 2 * paper.DAY_MS  # newest closed daily bar older than 2 days = stale
 
@@ -30,6 +31,7 @@ def tick(acc, series, now_ms=None):
     if not btc or now_ms - btc[-1][0] > STALE_MS:
         print("BTCUSDT: dados desatualizados ou em falta, não opero")
         return []
+    acc.setdefault("btc_start", btc[-1][4])  # for the "vs. just holding BTC" line in the summary
     if "last_t" not in acc:
         acc["last_t"] = btc[-1][0]
         return []
@@ -39,7 +41,42 @@ def tick(acc, series, now_ms=None):
     if len(new) > 1:  # never trade at past closes: only the latest one is a price we could get now
         print(f"{len(new) - 1} fecho(s) falhado(s): decido só com o mais recente")
     acc["last_t"] = new[-1]
-    return [decide(acc, window(series, new[-1], min_n=MIN_HISTORY), new[-1])]
+    rec = decide(acc, window(series, new[-1], min_n=MIN_HISTORY), new[-1])
+    acc.setdefault("historico", []).append([new[-1], round(acc["equity"], 4)])
+    return [rec]
+
+
+def _day(t):
+    return datetime.datetime.fromtimestamp(t / 1000, datetime.timezone.utc).strftime("%Y-%m-%d")
+
+
+def summary(acc, records, btc_now):
+    """Short Markdown report for a phone screen."""
+    eq = acc["equity"]
+    lines = ["# Agente de trade (paper, dinheiro fictício)", ""]
+    if acc["halted"]:
+        lines += ["> ⚠️ **PARADO**: caiu 25% desde o pico. Tudo em dinheiro até dares OK "
+                  "(Actions › paper › Run workflow › marcar *ok*).", ""]
+    lines.append(f"**Capital:** {eq:.2f} USDT ({eq / CAPITAL - 1:+.1%} desde o início, {CAPITAL:.2f} USDT)  ")
+    if btc_now and acc.get("btc_start"):
+        lines.append(f"**Só guardar BTC no mesmo período:** {btc_now / acc['btc_start'] - 1:+.1%}  ")
+    lines.append(f"**Atualizado:** {datetime.datetime.now(datetime.timezone.utc):%Y-%m-%d %H:%M} UTC")
+    lines += ["", "## Posição"]
+    held = [f"- {s}: {q * acc['px'][s]:.2f} USDT ({q * acc['px'][s] / eq:.0%} da conta)"
+            for s, q in acc["positions"].items()]
+    lines += held or ["- Nenhuma moeda: tudo em dinheiro"]
+    lines.append(f"- Dinheiro: {acc['cash']:.2f} USDT")
+    for r in records:
+        lines += ["", f"## Decisão do fecho de {_day(r['t'])}",
+                  f"- Mercado (regime do BTC): {'ligado, pode comprar' if r['regime'] else 'desligado, só dinheiro'}"]
+        lines += [f"- Ordem: {f['lado']} {f['symbol']} {f['qty'] * f['preco']:.2f} USDT" for f in r["fills"]] or ["- Sem ordens"]
+        lines += [f"- Skeptic travou {s}: {m}" for s, m in r["skeptic"].items()]
+        lines.append(f"- Risco: {r['risk']}")
+    hist = acc.get("historico", [])[-7:]
+    if hist:
+        lines += ["", "## Últimos dias", "| Dia | Capital |", "|---|---|"]
+        lines += [f"| {_day(t)} | {e:.2f} |" for t, e in reversed(hist)]
+    return "\n".join(lines) + "\n"
 
 
 def resume(acc):
@@ -79,6 +116,12 @@ def main():
             print(f"{day}: regime {'ligado' if r['regime'] else 'desligado'} | alvo: {alvo} | "
                   f"ordens {len(r['fills'])} | risk gate: {r['risk']}"
                   + "".join(f" | Skeptic {s}: {m}" for s, m in r["skeptic"].items()))
+        md = summary(acc, records, acc["px"].get("BTCUSDT"))
+        with open(RESUMO, "w", encoding="utf-8") as fh:
+            fh.write(md)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):  # shown on the GitHub run page
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+                fh.write(md)
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     pos = {s: round(q * acc["px"][s], 2) for s, q in acc["positions"].items()}
     print(f"[{now}] capital {acc['equity']:.2f} USDT ({acc['equity'] / CAPITAL - 1:+.1%}), "
