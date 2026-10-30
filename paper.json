@@ -1,0 +1,20 @@
+{
+ "cash": 25.0,
+ "equity": 25.0,
+ "peak": 25.0,
+ "day": 20755,
+ "day_start": 25.0,
+ "positions": {},
+ "halted": false,
+ "trades": [],
+ "last_t": {
+  "BTCUSDT": 1793304000000,
+  "ETHUSDT": 1793304000000,
+  "SOLUSDT": 1793304000000,
+  "BNBUSDT": 1793304000000,
+  "XRPUSDT": 1793304000000,
+  "ADAUSDT": 1793304000000,
+  "DOGEUSDT": 1793304000000,
+  "LINKUSDT": 1793304000000
+ }
+}
