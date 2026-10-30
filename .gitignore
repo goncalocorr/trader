@@ -1,0 +1,25 @@
+# Configuração interna (nunca versionar)
+/CLAUDE.md
+/.claude/
+/.agents/
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# SQL local
+/sql/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Grafo
+graphify-out/
+
+# Dados de mercado em cache e estado paper
+/data/
+/state/

@@ -1,0 +1,61 @@
+# Paper trading every 4h (a few minutes after each 4h candle closes). No real orders, no keys.
+name: paper
+
+on:
+  schedule:
+    - cron: "7 */4 * * *"
+  workflow_dispatch:
+    inputs:
+      ok:
+        description: "Retomar depois de uma paragem por drawdown (o teu OK)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paper
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache de dados de mercado
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: data-${{ github.run_id }}
+          restore-keys: data-
+
+      - name: Carregar estado (branch paper-state)
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p state && cd state
+          git init -q
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth=1 origin paper-state; then
+            git checkout -q -B paper-state FETCH_HEAD
+          else
+            git checkout -q -b paper-state
+          fi
+
+      - name: Ronda de paper trading
+        run: python -m agente.live ${{ inputs.ok && '--ok' || '' }}
+
+      - name: Guardar estado
+        run: |
+          cd state
+          git add -A
+          git -c user.name="paper-bot" -c user.email="paper-bot@users.noreply.github.com" \
+            commit -qm "paper $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          git push -q origin paper-state
