@@ -18,7 +18,7 @@ from agente.desk import MIN_HISTORY, decide, window
 STATE_DIR = os.path.join(os.path.dirname(data.DIR), "state")
 ACCOUNT = os.path.join(STATE_DIR, "paper.json")
 LOG = os.path.join(STATE_DIR, "sinais.jsonl")
-CAPITAL = 100.0  # USDT (~90 EUR): below ~100 the 5 USDT order minimum leaves the strategy idle
+CAPITAL = 25.0  # USDT (~EUR): the owner's real budget; one position at a time fits the 5 USDT minimum
 STALE_MS = 2 * paper.DAY_MS  # newest closed daily bar older than 2 days = stale
 
 

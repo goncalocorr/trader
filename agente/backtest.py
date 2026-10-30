@@ -1,6 +1,6 @@
 """Walk-forward backtest over real daily history, through the same desk the live agent uses.
 
-    python -m agente.backtest                          # 100 USDT, default universe, since 2018
+    python -m agente.backtest                          # 25 USDT, default universe, since 2018
     python -m agente.backtest --start 2024-01-01 --retomar
 """
 
@@ -72,7 +72,7 @@ def report(acc, curve, records, capital):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--capital", type=float, default=100.0)
+    ap.add_argument("--capital", type=float, default=25.0)
     ap.add_argument("--start", default="2018-01-01")
     ap.add_argument("--fim", default=None)
     ap.add_argument("--symbols", default=",".join(UNIVERSE))

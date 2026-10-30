@@ -18,10 +18,16 @@ class Strategy(unittest.TestCase):
         w = target_weights({"A": rising(), "B": falling()}, btc=rising())
         self.assertEqual(set(w), {"A"})
 
-    def test_calm_coins_get_equal_full_weight(self):
+    def test_all_exposure_goes_to_the_strongest_coin(self):
         w = target_weights({"A": rising(), "B": rising(step=0.003)}, btc=rising())
-        self.assertAlmostEqual(w["A"], 0.5)
-        self.assertAlmostEqual(w["B"], 0.5)
+        self.assertEqual(set(w), {"B"})
+        self.assertAlmostEqual(w["B"], 1.0)  # calm market: full vol-targeted exposure, in one coin
+
+    def test_strength_is_measured_over_50_days(self):
+        # A jumped long ago but is flat lately; B rose steadily over the last 50 days
+        a = [100.0] * 300 + [200.0 + i * 0.01 for i in range(100)]
+        b = rising()
+        self.assertEqual(set(target_weights({"A": a, "B": b}, btc=rising())), {"B"})
 
     def test_volatile_portfolio_is_scaled_to_the_vol_target(self):
         wild = [100 * 1.001 ** i * (1.1 if i % 2 else 1.0) for i in range(400)]

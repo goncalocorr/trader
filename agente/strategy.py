@@ -1,5 +1,6 @@
-"""Momentum (TSMOM): hold each coin above its 50-day average, only while BTC is above its 200-day
-average, with total exposure scaled to a 20% yearly volatility. Skeptic: no buying into a spike.
+"""Momentum rotation: of the coins above their 50-day average, hold the one that rose most over 50 days,
+only while BTC is above its 200-day average, with exposure scaled to a 20% yearly volatility.
+Skeptic: no buying into a spike.
 
 closes: {symbol: [daily closes, oldest first]}, every list ending on the same day.
 """
@@ -37,7 +38,11 @@ def target_weights(closes, btc):
     daily = [sum(w * r for r in day) for day in zip(*(_returns(closes[s], VOL_N) for s in chosen))]
     vol = statistics.pstdev(daily) * math.sqrt(365)
     k = min(1.0, VOL_TARGET / vol) if vol > 0 else 1.0
-    return {s: w * k for s in chosen}
+    # With 25 USDT and a 5 USDT order minimum only one position fits: put the whole exposure in the
+    # coin that rose most over SMA_N days. ponytail: exposure is sized on the basket's volatility (the
+    # tested version), so one coin runs hotter than 20%; size on that coin's own vol if drawdowns bite.
+    best = max(chosen, key=lambda s: closes[s][-1] / closes[s][-SMA_N - 1])
+    return {best: k}
 
 
 def skeptic(closes, current, target):

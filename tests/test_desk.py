@@ -23,7 +23,7 @@ class Desk(unittest.TestCase):
 
     def test_buys_in_a_good_regime_and_logs_every_step(self):
         acc = paper.new_account(1000.0)
-        rec = decide(acc, {"BTCUSDT": rising(), "A": rising()}, t=0)
+        rec = decide(acc, {"BTCUSDT": rising(), "A": rising(step=0.003)}, t=0)
         for key in ("t", "regime", "target", "skeptic", "mc", "risk", "fills"):
             self.assertIn(key, rec)
         self.assertTrue(rec["regime"])

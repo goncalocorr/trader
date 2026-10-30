@@ -5,7 +5,7 @@ from agente.risk import MAX_DRAWDOWN, MIN_NOTIONAL
 FEE = 0.001     # per side (Binance spot taker)
 SLIP = 0.0005   # per side
 DAY_MS = 86_400_000
-VERSION = 2     # account format; older state files are replaced by a fresh account
+VERSION = 3     # account/strategy version; older state files are replaced by a fresh account
 
 
 def new_account(capital):
