@@ -11,11 +11,12 @@ import statistics
 
 from agente import data, paper
 from agente.desk import decide
+from agente.strategy import REGIME_N
 
 UNIVERSE = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "LINKUSDT"]
 
 
-def run(series, capital, since_ms=0, resume=False):
+def run(series, capital, since_ms=0, resume=False, until_ms=None):
     """series: {symbol: bars}. No lookahead: each decision only sees bars up to that close.
 
     resume=True simulates the owner saying OK after each drawdown halt (counted in acc["halts"]).
@@ -23,7 +24,7 @@ def run(series, capital, since_ms=0, resume=False):
     acc = paper.new_account(capital)
     acc["halts"] = 0
     idx = {s: {b[0]: i for i, b in enumerate(bs)} for s, bs in series.items()}
-    times = sorted({t for bs in series.values() for b in bs for t in [b[0]] if t >= since_ms})
+    times = sorted({t for bs in series.values() for b in bs for t in [b[0]] if t >= since_ms and (until_ms is None or t < until_ms)})
     last = {}
     curve, records = [], []
     for t in times:
@@ -40,7 +41,9 @@ def run(series, capital, since_ms=0, resume=False):
             acc["halted"], acc["peak"] = False, acc["equity"]
         for s, i in here:
             if s not in acc["positions"]:
-                rec = decide(acc, s, series[s][max(0, i - 600):i + 1])
+                b = idx["BTCUSDT"].get(t) if "BTCUSDT" in idx else None
+                btc = series["BTCUSDT"][max(0, b - REGIME_N):b + 1] if b is not None else []
+                rec = decide(acc, s, series[s][max(0, i - 600):i + 1], btc=btc)
                 if rec:
                     records.append(rec)
                     paper.mark(acc, last, t)

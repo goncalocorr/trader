@@ -6,13 +6,18 @@ One path for both backtest and live paper, so the backtest tests the real thing.
 from agente import paper
 from agente.risk import check
 from agente.sim import ratios, simulate
-from agente.strategy import signal, skeptic
+from agente.strategy import regime_ok, signal, skeptic
 
 POOL = 500  # Monte Carlo draws from the last 500 bars (~83 days of 4h)
 
 
-def decide(acc, sym, bars):
-    """Evaluate the latest closed bar. Returns an audit record, or None when there is no signal."""
+def decide(acc, sym, bars, btc=None):
+    """Evaluate the latest closed bar. Returns an audit record, or None when there is no signal.
+
+    btc: BTC bars up to the same close, for the regime filter (None skips the filter).
+    """
+    if btc is not None and not regime_ok(btc):
+        return None
     p = signal(bars)
     if not p:
         return None

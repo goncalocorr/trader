@@ -1,6 +1,6 @@
 import unittest
 
-from agente.strategy import signal, skeptic
+from agente.strategy import REGIME_N, regime_ok, signal, skeptic
 
 
 def flat_then_breakout(vol_last=300.0, n=150):
@@ -23,6 +23,17 @@ class Strategy(unittest.TestCase):
 
     def test_too_little_history_is_ignored(self):
         self.assertIsNone(signal(flat_then_breakout(n=50)))
+
+    def test_regime_ok_when_btc_above_long_average(self):
+        btc = [(i, 0, 0, 0, 100 + i, 0) for i in range(REGIME_N + 1)]
+        self.assertTrue(regime_ok(btc))
+
+    def test_regime_off_when_btc_below_long_average(self):
+        btc = [(i, 0, 0, 0, 1000 - i, 0) for i in range(REGIME_N + 1)]
+        self.assertFalse(regime_ok(btc))
+
+    def test_regime_off_without_enough_history(self):
+        self.assertFalse(regime_ok([(0, 0, 0, 0, 100, 0)]))
 
     def test_skeptic_skips_weak_edge(self):
         v, _ = skeptic({"entry": 100, "stop": 95, "atr": 2.5}, (0, 0, 101, 99, 100, 0), {"ev_r": 0.01})

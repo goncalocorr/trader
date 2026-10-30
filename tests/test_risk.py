@@ -64,6 +64,19 @@ class RiskGate(unittest.TestCase):
         self.assertLessEqual(r["qty"] * 100.0 * 1.0005 * 1.001, 50.0)
         self.assertGreater(r["qty"], 0.49)
 
+    def test_total_open_risk_is_capped(self):
+        # 5.5 of 100 already at risk, heat cap 6 -> only 0.5 more allowed
+        a = account(positions={"ETHUSDT": {"qty": 1.1, "entry": 10.0, "stop": 5.0}})
+        r = check(a, proposal(ev_r=1.0))
+        self.assertTrue(r["ok"])
+        self.assertAlmostEqual(r["risk_frac"], 0.005)
+
+    def test_rejects_when_open_risk_at_cap(self):
+        a = account(positions={"ETHUSDT": {"qty": 1.2, "entry": 10.0, "stop": 5.0}})
+        r = check(a, proposal(ev_r=1.0))
+        self.assertFalse(r["ok"])
+        self.assertIn("risco total", r["reason"])
+
     def test_rejects_below_exchange_minimum(self):
         r = check(account(equity=25.0, cash=3.0, peak=25.0, day_start=25.0), proposal(ev_r=1.0))
         self.assertFalse(r["ok"])

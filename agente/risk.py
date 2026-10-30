@@ -4,6 +4,7 @@ RISK_CAP = 0.02      # max fraction of equity lost if the stop is hit
 DAILY_LOSS = 0.05    # stop trading for the day after losing this fraction
 MAX_DRAWDOWN = 0.25  # halt until the owner says OK
 MIN_NOTIONAL = 5.0   # exchange minimum order value (USDT)
+HEAT_CAP = 0.06      # max total equity at risk across open positions (crypto moves together)
 COST_BUFFER = 1.002  # entry slippage + fee, so a full-cash order never overdraws
 
 
@@ -32,6 +33,10 @@ def check(account, p):
     r_multiple = (target - entry) / (entry - stop)
     # Binary Kelly: f* = p - q/R = EV/R (fraction of equity at risk). Half Kelly, capped.
     risk_frac = min(p["ev_r"] / r_multiple / 2, RISK_CAP)
+    open_risk = sum((q["entry"] - q["stop"]) * q["qty"] for q in account["positions"].values())
+    risk_frac = min(risk_frac, HEAT_CAP - open_risk / eq)
+    if risk_frac <= 0:
+        return _no("risco total aberto no máximo")
     qty = eq * risk_frac / (entry - stop)
     qty = min(qty, account["cash"] / (entry * COST_BUFFER))  # no leverage
     if qty * entry < MIN_NOTIONAL:

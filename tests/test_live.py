@@ -5,6 +5,7 @@ from agente.live import resume, tick
 from tests.test_strategy import flat_then_breakout
 
 NOW = 151  # synthetic bars use t = 0..150, so the series is fresh
+RISING_BTC = [(t, 0, 0, 0, 2000 + t, 0) for t in range(-1300, 151)]  # BTC regime on
 
 
 class Live(unittest.TestCase):
@@ -17,10 +18,16 @@ class Live(unittest.TestCase):
     def test_new_bar_is_evaluated_once(self):
         bars = flat_then_breakout()
         acc = paper.new_account(25.0)
-        tick(acc, now_ms=NOW, series={"X": bars[:-1]})
-        recs = tick(acc, now_ms=NOW, series={"X": bars})
+        tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars[:-1]})
+        recs = tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars})
         self.assertEqual(len(recs), 1)
-        self.assertEqual(tick(acc, now_ms=NOW, series={"X": bars}), [])  # same bar again: nothing new
+        self.assertEqual(tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars}), [])
+
+    def test_no_btc_data_means_no_trading(self):
+        bars = flat_then_breakout()
+        acc = paper.new_account(25.0)
+        tick(acc, now_ms=NOW, series={"X": bars[:-1]})
+        self.assertEqual(tick(acc, now_ms=NOW, series={"X": bars}), [])
 
     def test_stale_series_is_skipped(self):
         acc = paper.new_account(25.0)

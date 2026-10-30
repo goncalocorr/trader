@@ -22,6 +22,11 @@ class Desk(unittest.TestCase):
         opened = "X" in acc["positions"]
         self.assertEqual(opened, rec["skeptic"] == "comprar" and rec["risk"]["ok"])
 
+    def test_bad_btc_regime_blocks_signal(self):
+        acc = paper.new_account(25.0)
+        falling_btc = [(i, 0, 0, 0, 1000 - i * 0.1, 0) for i in range(2000)]
+        self.assertIsNone(decide(acc, "X", flat_then_breakout(), btc=falling_btc))
+
     def test_halted_account_never_opens(self):
         acc = paper.new_account(25.0)
         acc["halted"] = True

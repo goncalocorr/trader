@@ -8,12 +8,20 @@ ATR_N = 14
 STOP_ATR = 2.0     # stop = entry - 2 ATR
 R_TARGET = 2.0     # target = 2x the risk
 VOL_SPIKE = 1.5    # Scout: volume at least 1.5x its 20-bar average
+REGIME_N = 1200    # BTC must close above its ~200-day average (1200 x 4h)
 MIN_EDGE = 0.05    # Skeptic: skip when Monte Carlo expectancy (net of costs) is below this, in R
 
 
 def atr(bars, n=ATR_N):
     tr = [max(b[2], a[4]) - min(b[3], a[4]) for a, b in zip(bars[-n - 1:], bars[-n:])]
     return sum(tr) / len(tr)
+
+
+def regime_ok(btc):
+    """Crypto moves with BTC: only go long when BTC is above its long average. Too little history = no."""
+    if len(btc) < REGIME_N + 1:
+        return False
+    return btc[-1][4] > sum(b[4] for b in btc[-REGIME_N - 1:-1]) / REGIME_N
 
 
 def signal(bars):

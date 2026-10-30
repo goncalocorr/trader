@@ -14,6 +14,7 @@ import time
 from agente import data, paper
 from agente.backtest import UNIVERSE
 from agente.desk import decide
+from agente.strategy import REGIME_N
 
 STATE_DIR = os.path.join(os.path.dirname(data.DIR), "state")
 ACCOUNT = os.path.join(STATE_DIR, "paper.json")
@@ -45,7 +46,8 @@ def tick(acc, series, now_ms=None):
         prices[s] = bs[i][4]
         paper.mark(acc, prices, t)
         if s not in acc["positions"]:
-            rec = decide(acc, s, bs[max(0, i - 600):i + 1])
+            btc = [b for b in series.get("BTCUSDT", [])[-REGIME_N - 50:] if b[0] <= t][-REGIME_N - 1:]
+            rec = decide(acc, s, bs[max(0, i - 600):i + 1], btc=btc)
             if rec:
                 records.append(rec)
         marks[s] = t
