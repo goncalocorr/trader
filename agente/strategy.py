@@ -1,53 +1,54 @@
-"""Scout + Charts (breakout signal) and Skeptic (veto). bars: (t, o, h, l, c, v), oldest first."""
+"""Momentum (TSMOM): hold each coin above its 50-day average, only while BTC is above its 200-day
+average, with total exposure scaled to a 20% yearly volatility. Skeptic: no buying into a spike.
+
+closes: {symbol: [daily closes, oldest first]}, every list ending on the same day.
+"""
 
 import math
+import statistics
 
-LOOKBACK = 20      # breakout over the previous 20 bars' highs
-TREND = 100        # close must be above this simple moving average
-ATR_N = 14
-STOP_ATR = 2.0     # stop = entry - 2 ATR
-R_TARGET = 2.0     # target = 2x the risk
-VOL_SPIKE = 1.5    # Scout: volume at least 1.5x its 20-bar average
-REGIME_N = 1200    # BTC must close above its ~200-day average (1200 x 4h)
-MIN_EDGE = 0.05    # Skeptic: skip when Monte Carlo expectancy (net of costs) is below this, in R
+SMA_N = 50         # coin trend: close above its 50-day average
+REGIME_N = 200     # market regime: BTC close above its 200-day average
+VOL_TARGET = 0.20  # yearly volatility target (chosen on 2018-2023 data with an out-of-sample margin)
+VOL_N = 30         # days used to estimate volatility
+SPIKE_SIGMA = 4.0  # Skeptic: a daily move this many standard deviations from normal is a spike
+SPIKE_FLOOR = 0.05
 
 
-def atr(bars, n=ATR_N):
-    tr = [max(b[2], a[4]) - min(b[3], a[4]) for a, b in zip(bars[-n - 1:], bars[-n:])]
-    return sum(tr) / len(tr)
+def above_average(closes, n):
+    return len(closes) > n and closes[-1] > sum(closes[-n - 1:-1]) / n
 
 
 def regime_ok(btc):
-    """Crypto moves with BTC: only go long when BTC is above its long average. Too little history = no."""
-    if len(btc) < REGIME_N + 1:
-        return False
-    return btc[-1][4] > sum(b[4] for b in btc[-REGIME_N - 1:-1]) / REGIME_N
+    return above_average(btc, REGIME_N)
 
 
-def signal(bars):
-    if len(bars) < TREND + 1:
-        return None
-    last, prev = bars[-1], bars[-LOOKBACK - 1:-1]
-    close = last[4]
-    if last[5] < VOL_SPIKE * sum(b[5] for b in prev) / LOOKBACK:
-        return None  # Scout: nothing unusual
-    if close <= max(b[2] for b in prev) or close <= sum(b[4] for b in bars[-TREND:]) / TREND:
-        return None  # Charts: no breakout in an uptrend
-    a = atr(bars)
-    stop = close - STOP_ATR * a
-    if stop <= 0:
-        return None
-    return {"entry": close, "stop": stop, "target": close + R_TARGET * (close - stop), "atr": a}
+def _returns(closes, n):
+    return [b / a - 1 for a, b in zip(closes[-n - 1:-1], closes[-n:])]
 
 
-def skeptic(p, last_bar, mc):
-    """Returns (verdict, reason): 'comprar', 'esperar' or 'saltar'."""
-    if mc["ev_r"] < MIN_EDGE:
-        return "saltar", f"expectativa fraca ({mc['ev_r']:+.2f}R depois de custos)"
-    step = 10 ** math.floor(math.log10(p["stop"])) / 2
-    round_level = math.ceil(p["stop"] / step) * step
-    if (round_level - p["stop"]) / p["stop"] < 0.005:
-        return "saltar", f"stop logo abaixo do número redondo {round_level:g}, onde os stops são caçados"
-    if last_bar[2] - last_bar[3] > 3 * p["atr"]:
-        return "esperar", "vela esticada, seria perseguir o preço"
-    return "comprar", f"setup limpo, expectativa {mc['ev_r']:+.2f}R"
+def target_weights(closes, btc):
+    if not regime_ok(btc):
+        return {}
+    chosen = [s for s, c in closes.items() if len(c) > VOL_N and above_average(c, SMA_N)]
+    if not chosen:
+        return {}
+    w = 1 / len(chosen)
+    daily = [sum(w * r for r in day) for day in zip(*(_returns(closes[s], VOL_N) for s in chosen))]
+    vol = statistics.pstdev(daily) * math.sqrt(365)
+    k = min(1.0, VOL_TARGET / vol) if vol > 0 else 1.0
+    return {s: w * k for s in chosen}
+
+
+def skeptic(closes, current, target):
+    """Hold back increases in coins whose last daily move is abnormal. Returns (weights, reasons)."""
+    out, why = dict(target), {}
+    for s, w in target.items():
+        if w <= current.get(s, 0) or len(closes[s]) <= VOL_N + 1:
+            continue
+        r = _returns(closes[s], VOL_N + 1)
+        last, past = r[-1], r[:-1]
+        if abs(last - statistics.mean(past)) > max(SPIKE_SIGMA * statistics.pstdev(past), SPIKE_FLOOR):
+            out[s] = current.get(s, 0)
+            why[s] = f"movimento anormal de {last:+.1%} num dia: não reforço hoje"
+    return {s: w for s, w in out.items() if w > 0}, why

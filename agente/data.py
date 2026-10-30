@@ -9,7 +9,6 @@ import urllib.request
 
 URL = "https://data-api.binance.vision/api/v3/klines?symbol={s}&interval={i}&limit=1000&startTime={t}"
 DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-INTERVAL_MS = {"4h": 4 * 3_600_000}
 
 
 def _get(url):

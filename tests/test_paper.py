@@ -1,70 +1,68 @@
 import unittest
 
 from agente import paper
+from agente.risk import MIN_NOTIONAL
 
-DAY = 86_400_000  # ms
-
-
-def acc_with_position(stop=95.0, target=110.0):
-    a = paper.new_account(1000.0)
-    paper.open_position(a, "BTCUSDT", qty=1.0, price=100.0, stop=stop, target=target, t=0)
-    return a
+DAY = 86_400_000
 
 
 class Paper(unittest.TestCase):
-    def test_open_pays_price_slippage_and_fee(self):
-        a = acc_with_position()
-        fill = 100.0 * (1 + paper.SLIP)
-        self.assertAlmostEqual(a["cash"], 1000.0 - fill * (1 + paper.FEE))
-        self.assertAlmostEqual(a["positions"]["BTCUSDT"]["entry"], fill)
+    def test_buy_pays_slippage_and_fee(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.5}, {"A": 10.0}, t=0)
+        self.assertAlmostEqual(a["positions"]["A"], 50.0 / (10.0 * (1 + paper.SLIP) * (1 + paper.FEE)))
+        self.assertAlmostEqual(a["cash"], 50.0)
 
-    def test_stop_exit(self):
-        a = acc_with_position()
-        tr = paper.on_bar(a, "BTCUSDT", (1, 99, 101, 94, 96, 1))
-        self.assertEqual(tr["exit_reason"], "stop")
-        self.assertAlmostEqual(tr["exit"], 95.0 * (1 - paper.SLIP))
-        self.assertNotIn("BTCUSDT", a["positions"])
+    def test_sell_to_zero_removes_position_and_pays_costs(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.5}, {"A": 10.0}, t=0)
+        qty = a["positions"]["A"]
+        paper.rebalance(a, {}, {"A": 10.0}, t=1)
+        self.assertNotIn("A", a["positions"])
+        self.assertAlmostEqual(a["cash"], 50.0 + qty * 10.0 * (1 - paper.SLIP) * (1 - paper.FEE))
 
-    def test_gap_through_stop_fills_at_open(self):
-        a = acc_with_position()
-        tr = paper.on_bar(a, "BTCUSDT", (1, 90, 91, 89, 90, 1))
-        self.assertAlmostEqual(tr["exit"], 90.0 * (1 - paper.SLIP))
+    def test_tiny_rebalance_is_skipped(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.5}, {"A": 10.0}, t=0)
+        fills = paper.rebalance(a, {"A": 0.5 + (MIN_NOTIONAL - 1) / 100}, {"A": 10.0}, t=1)
+        self.assertEqual(fills, [])
 
-    def test_target_exit(self):
-        a = acc_with_position()
-        tr = paper.on_bar(a, "BTCUSDT", (1, 101, 111, 100, 109, 1))
-        self.assertEqual(tr["exit_reason"], "alvo")
+    def test_order_below_minimum_is_not_opened(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.03}, {"A": 10.0}, t=0)
+        self.assertNotIn("A", a["positions"])
 
-    def test_stop_before_target_in_same_bar(self):
-        a = acc_with_position()
-        self.assertEqual(paper.on_bar(a, "BTCUSDT", (1, 100, 111, 94, 100, 1))["exit_reason"], "stop")
+    def test_full_exit_happens_even_below_minimum(self):
+        a = paper.new_account(100.0)
+        a["positions"]["A"] = 0.2  # 2 USDT of dust
+        paper.rebalance(a, {}, {"A": 10.0}, t=1)
+        self.assertNotIn("A", a["positions"])
 
-    def test_time_exit_after_max_bars(self):
-        a = acc_with_position()
-        tr = None
-        for i in range(paper.MAX_BARS):
-            tr = paper.on_bar(a, "BTCUSDT", (i, 100, 101, 99, 100, 1))
-        self.assertEqual(tr["exit_reason"], "tempo")
-
-    def test_round_trip_profit_counts_fees(self):
-        a = acc_with_position()
-        paper.on_bar(a, "BTCUSDT", (1, 101, 111, 100, 109, 1))
-        self.assertLess(a["cash"], 1010.0)
-        self.assertGreater(a["cash"], 1009.0)
+    def test_buys_never_overdraw_cash(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.6, "B": 0.6}, {"A": 10.0, "B": 5.0}, t=0)
+        self.assertGreaterEqual(a["cash"], -1e-9)
 
     def test_mark_tracks_equity_peak_and_new_day(self):
-        a = acc_with_position()
-        paper.mark(a, {"BTCUSDT": 120.0}, t=DAY + 1)
-        self.assertAlmostEqual(a["equity"], a["cash"] + 120.0)
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.5}, {"A": 10.0}, t=0)
+        paper.mark(a, {"A": 20.0}, t=DAY)
+        self.assertAlmostEqual(a["equity"], a["cash"] + a["positions"]["A"] * 20.0)
         self.assertEqual(a["peak"], a["equity"])
-        self.assertEqual(a["day_start"], a["equity"])
+        self.assertEqual(a["day_start"], 100.0)  # the new day starts from yesterday's close
+
+    def test_a_bad_day_is_measured_from_the_previous_close(self):
+        a = paper.new_account(100.0)
+        paper.rebalance(a, {"A": 0.5}, {"A": 10.0}, t=0)
+        paper.mark(a, {"A": 10.0}, t=0)
+        paper.mark(a, {"A": 8.0}, t=DAY)  # -20% on half the account in one day
+        self.assertLess(a["equity"], a["day_start"] * 0.95)
 
     def test_mark_halts_on_max_drawdown(self):
         a = paper.new_account(100.0)
-        paper.open_position(a, "BTCUSDT", qty=0.9, price=100.0, stop=50.0, target=200.0, t=0)
-        paper.mark(a, {"BTCUSDT": 100.0}, t=0)
-        self.assertFalse(a["halted"])
-        paper.mark(a, {"BTCUSDT": 70.0}, t=1)  # equity ~73, more than 25% below the ~100 peak
+        paper.rebalance(a, {"A": 0.9}, {"A": 10.0}, t=0)
+        paper.mark(a, {"A": 10.0}, t=0)
+        paper.mark(a, {"A": 6.5}, t=1)
         self.assertTrue(a["halted"])
 
 

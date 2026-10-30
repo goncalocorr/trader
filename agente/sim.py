@@ -1,42 +1,25 @@
-"""Monte Carlo "time machine": replay the trade many times from the asset's own past bars."""
+"""Monte Carlo "time machine": replay the next 30 days of the portfolio many times."""
 
 import random
 
 
-def ratios(bars):
-    """Each bar as (open, high, low, close) / previous close. bars: (t, o, h, l, c, v)."""
-    return [(b[1] / a[4], b[2] / a[4], b[3] / a[4], b[4] / a[4]) for a, b in zip(bars, bars[1:])]
+def drawdown_risk(weights, rows, horizon=30, limit=0.25, replays=500, seed=19):
+    """Probability that the portfolio falls `limit` from its peak within `horizon` days.
 
-
-def simulate(pool, entry, stop, target, horizon, replays=2000, seed=19, cost=0.004):
-    """Long trade. cost = round-trip fees + slippage as a fraction of price.
-
-    ponytail: i.i.d. bootstrap of bars; ignores volatility clustering and news.
-    Upgrade path: block bootstrap if results look too smooth vs. real fills.
+    rows: past days as {symbol: daily return}; whole days are drawn so coins keep moving together.
+    ponytail: i.i.d. day bootstrap; ignores volatility clustering. Block bootstrap if it looks too calm.
     """
+    if not weights or not rows:
+        return 0.0
     rng = random.Random(seed)
-    risk = entry - stop
-    hits = {"target": 0, "stop": 0, "neither": 0}
-    total_r = 0.0
+    hits = 0
     for _ in range(replays):
-        price = entry
+        equity = peak = 1.0
         for _ in range(horizon):
-            o, h, l, c = rng.choice(pool)
-            if price * l <= stop:  # stop first: a bar touching both counts as a loss
-                hits["stop"] += 1
-                total_r += (min(price * o, stop) - entry) / risk  # a gap below the stop loses more than 1R
+            day = rng.choice(rows)
+            equity *= 1 + sum(w * day.get(s, 0.0) for s, w in weights.items())
+            peak = max(peak, equity)
+            if 1 - equity / peak >= limit:
+                hits += 1
                 break
-            if price * h >= target:
-                hits["target"] += 1
-                total_r += (target - entry) / risk
-                break
-            price *= c
-        else:
-            hits["neither"] += 1
-            total_r += (price - entry) / risk
-    return {
-        "p_target": hits["target"] / replays,
-        "p_stop": hits["stop"] / replays,
-        "p_neither": hits["neither"] / replays,
-        "ev_r": total_r / replays - cost * entry / risk,
-    }
+    return hits / replays

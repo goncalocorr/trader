@@ -2,37 +2,34 @@ import unittest
 
 from agente import paper
 from agente.live import resume, tick
-from tests.test_strategy import flat_then_breakout
+from tests.helpers import DAY, bars, rising
 
-NOW = 151  # synthetic bars use t = 0..150, so the series is fresh
-RISING_BTC = [(t, 0, 0, 0, 2000 + t, 0) for t in range(-1300, 151)]  # BTC regime on
+SERIES = {"BTCUSDT": bars(rising()), "A": bars(rising())}
+NOW = 400 * DAY  # last bar opened on day 399: fresh
 
 
 class Live(unittest.TestCase):
-    def test_first_tick_only_bookmarks_no_trading_on_old_bars(self):
-        acc = paper.new_account(25.0)
-        recs = tick(acc, now_ms=NOW, series={"X": flat_then_breakout()})
-        self.assertEqual(recs, [])
-        self.assertEqual(acc["last_t"]["X"], flat_then_breakout()[-1][0])
+    def test_first_tick_only_bookmarks(self):
+        acc = paper.new_account(1000.0)
+        self.assertEqual(tick(acc, SERIES, now_ms=NOW), [])
+        self.assertEqual(acc["last_t"], 399 * DAY)
 
-    def test_new_bar_is_evaluated_once(self):
-        bars = flat_then_breakout()
-        acc = paper.new_account(25.0)
-        tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars[:-1]})
-        recs = tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars})
-        self.assertEqual(len(recs), 1)
-        self.assertEqual(tick(acc, now_ms=NOW, series={"BTCUSDT": RISING_BTC, "X": bars}), [])
+    def test_new_day_is_processed_once(self):
+        acc = paper.new_account(1000.0)
+        tick(acc, {s: b[:-1] for s, b in SERIES.items()}, now_ms=NOW)
+        self.assertEqual(len(tick(acc, SERIES, now_ms=NOW)), 1)
+        self.assertEqual(tick(acc, SERIES, now_ms=NOW), [])
 
-    def test_no_btc_data_means_no_trading(self):
-        bars = flat_then_breakout()
-        acc = paper.new_account(25.0)
-        tick(acc, now_ms=NOW, series={"X": bars[:-1]})
-        self.assertEqual(tick(acc, now_ms=NOW, series={"X": bars}), [])
+    def test_missed_days_decide_only_on_the_latest_close(self):
+        acc = paper.new_account(1000.0)
+        tick(acc, {s: b[:-3] for s, b in SERIES.items()}, now_ms=397 * DAY)
+        recs = tick(acc, SERIES, now_ms=NOW)
+        self.assertEqual([r["t"] for r in recs], [399 * DAY])
 
-    def test_stale_series_is_skipped(self):
-        acc = paper.new_account(25.0)
-        tick(acc, now_ms=10**12, series={"X": flat_then_breakout()})
-        self.assertNotIn("X", acc["last_t"])
+    def test_stale_data_means_no_trading(self):
+        acc = paper.new_account(1000.0)
+        self.assertEqual(tick(acc, SERIES, now_ms=NOW + 10 * DAY), [])
+        self.assertNotIn("last_t", acc)
 
     def test_ok_resumes_after_halt(self):
         acc = paper.new_account(25.0)
