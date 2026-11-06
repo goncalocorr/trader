@@ -1,14 +1,14 @@
 # Agente de trade (paper, dinheiro fictício)
 
 **Capital:** 25.00 USDT (+0.0% desde o início, 25.00 USDT)  
-**Só guardar BTC no mesmo período:** +3.2%  
-**Atualizado:** 2026-11-05 06:43 UTC
+**Só guardar BTC no mesmo período:** -2.4%  
+**Atualizado:** 2026-11-06 06:40 UTC
 
 ## Posição
 - Nenhuma moeda: tudo em dinheiro
 - Dinheiro: 25.00 USDT
 
-## Decisão do fecho de 2026-11-04
+## Decisão do fecho de 2026-11-05
 - Mercado (regime do BTC): ligado, pode comprar
 - Sem ordens
 - Risco: aprovado
@@ -16,6 +16,7 @@
 ## Últimos dias
 | Dia | Capital |
 |---|---|
+| 2026-11-05 | 25.00 |
 | 2026-11-04 | 25.00 |
 | 2026-11-03 | 25.00 |
 | 2026-11-02 | 25.00 |
