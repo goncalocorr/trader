@@ -3,21 +3,21 @@
  "cash": 25.0,
  "equity": 25.0,
  "peak": 25.0,
- "day": 20780,
+ "day": 20781,
  "day_start": 25.0,
  "positions": {},
  "px": {
-  "BTCUSDT": 61270.93,
-  "ETHUSDT": 1710.65,
-  "SOLUSDT": 72.03,
-  "BNBUSDT": 556.65,
-  "XRPUSDT": 0.9407,
-  "ADAUSDT": 0.1486,
-  "DOGEUSDT": 0.0564,
-  "LINKUSDT": 9.014
+  "BTCUSDT": 59832.0,
+  "ETHUSDT": 1680.11,
+  "SOLUSDT": 69.69,
+  "BNBUSDT": 548.62,
+  "XRPUSDT": 0.9251,
+  "ADAUSDT": 0.1446,
+  "DOGEUSDT": 0.05532,
+  "LINKUSDT": 8.852
  },
  "halted": false,
- "last_t": 1795392000000,
+ "last_t": 1795478400000,
  "btc_start": 77991.89,
  "historico": [
   [
@@ -118,6 +118,10 @@
   ],
   [
    1795392000000,
+   25.0
+  ],
+  [
+   1795478400000,
    25.0
   ]
  ]
